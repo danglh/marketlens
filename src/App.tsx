@@ -71,6 +71,7 @@ export default function App() {
                     value={10}
                     unit="Stocks"
                     percentage={33}
+                    metricKey="breadth_up"
                     icon={ArrowUpRight}
                     colorClass="text-emerald-500"
                     bgClass="bg-emerald-500/10"
@@ -80,6 +81,7 @@ export default function App() {
                     value={19}
                     unit="Stocks"
                     percentage={63}
+                    metricKey="breadth_down"
                     icon={ArrowDownRight}
                     colorClass="text-red-500"
                     bgClass="bg-red-500/10"
@@ -89,6 +91,7 @@ export default function App() {
                     value={3}
                     unit="Assets"
                     percentage={10.00}
+                    metricKey="near_high_count"
                     icon={ChevronUp}
                     colorClass="text-blue-500"
                     bgClass="bg-blue-500/10"
@@ -98,6 +101,7 @@ export default function App() {
                     value={14}
                     unit="Assets"
                     percentage={46.67}
+                    metricKey="near_low_count"
                     icon={ChevronDown}
                     colorClass="text-orange-500"
                     bgClass="bg-orange-500/10"
