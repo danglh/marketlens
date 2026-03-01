@@ -3,6 +3,7 @@ import { pool } from "../db/pool";
 
 type RawStat = {
   symbol: string;
+  basic: number | null;  
   open: number | null;
   close: number | null;
   high: number | null;
@@ -48,6 +49,18 @@ function percentileInc(values: number[], p: number) {
   return xs[lo] * (1 - w) + xs[hi] * w;
 }
 
+function toBilVndMixed(totalVal: number | null): number | null {
+  if (totalVal == null) return null;
+  const v = totalVal;
+
+  // If it's huge (e.g., 91252), it's likely "million VND" -> /1000 => bil
+  // If it's already in bil (e.g., 1788.467), keep.
+  const abs = Math.abs(v);
+  if (abs >= 10_000) return v / 1_000;
+
+  return v;
+}
+
 function labelRegime(score: number) {
   // Mirrors your nested IF idea (tweak as needed)
   if (score >= 80) return "STRONG BULL";
@@ -74,6 +87,7 @@ export async function computeSnapshot(snapshotId: number) {
       `
       SELECT
         symbol,
+        basic, 
         open, close, high, low, average,
         change_abs, change_pct,
         total_vol, total_val,
@@ -124,10 +138,34 @@ export async function computeSnapshot(snapshotId: number) {
         weight = s.market_cap / mcapSum; // fallback
       }
 
-      const changePct = s.change_pct ?? 0;
-      const price = s.close ?? s.average ?? null;
+   // ✅ choose ref_price like Excel: Basic (reference price) first, fallback to Open, then Close/Average
+      const refPrice = s.basic ?? s.open ?? null;
+
+      // ✅ choose "price" like Excel: Close first, fallback to Average, then Open
+      const price = s.close ?? s.average ?? s.open ?? null;
+
       const high = s.high ?? null;
       const low = s.low ?? null;
+
+      // ✅ Excel-like fallback for change_abs
+      const changeAbs =
+        s.change_abs ??
+        (price != null && refPrice != null ? price - refPrice : null);
+
+      // ✅ Excel-like fallback for change_pct (percent, not ratio)
+      const changePct =
+        s.change_pct ??
+        (changeAbs != null && refPrice != null && refPrice !== 0
+          ? (changeAbs / refPrice) * 100
+          : null);
+
+      // ✅ flags should treat null as 0 only at the very end (for booleans), not for storing change_pct
+      const changePctForFlags = changePct ?? 0;
+
+      // ✅ Value(Bil VND) fix:
+      // Your raw total_val is "thousand VND" -> to "bil VND": divide by 1e6
+      // Example: 364,340,000 (thousand VND) / 1,000,000 = 364.34 (bil VND)
+      const valueBil = toBilVndMixed(s.total_val);
 
       const rangePos =
         price != null && high != null && low != null && high !== low
@@ -137,24 +175,23 @@ export async function computeSnapshot(snapshotId: number) {
       const nearHigh = rangePos >= 0.8 ? 1 : 0;
       const nearLow = rangePos <= 0.2 ? 1 : 0;
 
-      const up = changePct > 0 ? 1 : 0;
-      const down = changePct < 0 ? 1 : 0;
-      const upGt1 = changePct > 1 ? 1 : 0;
-      const downLtMinus1 = changePct < -1 ? 1 : 0;
+      const up = changePctForFlags > 0 ? 1 : 0;
+      const down = changePctForFlags < 0 ? 1 : 0;
+      const upGt1 = changePctForFlags >= 1 ? 1 : 0;          // ✅ more Excel-ish for ">= 1%"
+      const downLtMinus1 = changePctForFlags <= -1 ? 1 : 0;  // ✅ more Excel-ish for "<= -1%"
 
-      const weightedMove = weight * changePct; // Excel-like
-
-      const valueBil =
-        s.total_val != null ? s.total_val / 1_000_000_000 : null; // if your raw is VND
+      const weightedMove = weight * changePctForFlags;
 
       return {
         ticker: s.symbol,
-        ref_price: s.open ?? null,
+        ref_price: refPrice,
         price,
         high,
         low,
-        change_abs: s.change_abs ?? null,
-        change_pct: changePct,
+
+        change_abs: changeAbs,
+        change_pct: changePct,        // ✅ store real pct (can be null if impossible)
+
         volume: s.total_vol ?? null,
         value_bil: valueBil,
 
@@ -174,7 +211,7 @@ export async function computeSnapshot(snapshotId: number) {
         influence_points: influencePoints ?? null,
         influence_pct: influencePct ?? null,
         proportion_pct: proportionPct ?? null,
-      };
+      };    
     });
 
     // 4) Heavyweight flag = weight >= P80
@@ -184,8 +221,9 @@ export async function computeSnapshot(snapshotId: number) {
       r.is_heavyweight = r.weight >= p80 ? 1 : 0;
     }
 
-    // 5) Write autoscore rows
+    // 5) Write autoscore rows    
     for (const r of autoscoreRows) {
+      const isBank = bankSet.has(r.ticker) ? 1 : 0;
       await client.query(
         `
         INSERT INTO autoscore (
@@ -247,7 +285,7 @@ export async function computeSnapshot(snapshotId: number) {
           r.volume,
           r.value_bil,
           r.weight,
-          r.is_bank,
+          isBank,
           r.is_heavyweight,
           r.range_pos,
           r.near_high,

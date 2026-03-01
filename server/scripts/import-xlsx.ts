@@ -164,10 +164,14 @@ async function main() {
           num(pick(r, ["Price", "price"])),
           pick(r, ["Change", "change"]) ?? null,
           int(pick(r, ["OutstandingShares", "Outstanding Shares", "outstanding_shares"])),
-          num(pick(r, ["MarketCap", "Market Cap", "market_cap"])),
-          num(pick(r, ["Proportion", "proportion_pct"])),
-          num(pick(r, ["%Influence", "InfluencePct", "influence_pct"])),
-          num(pick(r, ["InfluencePoints", "Influence Points", "influence_points"])),
+          //num(pick(r, ["MarketCap", "Market Cap", "market_cap"])),
+          num(pick(r, ["Market Cap.", "Market Cap"])),
+          num(pick(r, ["Proportion"])),
+          num(pick(r, ["%influence", "%Influence"])),
+          num(pick(r, ["Influence points", "Influence Points"]))
+          // num(pick(r, ["Proportion", "proportion_pct"])),
+          // num(pick(r, ["%Influence", "InfluencePct", "influence_pct"])),
+          // num(pick(r, ["InfluencePoints", "Influence Points", "influence_points"])),
         ]
       );
     }

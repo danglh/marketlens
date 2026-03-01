@@ -11,7 +11,8 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "import:xlsx": "tsx server/scripts/import-xlsx.ts",
-    "compute": "tsx server/scripts/compute-cli.ts"
+    "compute": "tsx server/scripts/compute-cli.ts",
+    "audit": "tsx server/scripts/audit-cli.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
