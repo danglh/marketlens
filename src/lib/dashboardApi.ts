@@ -62,35 +62,43 @@ export type MarketHealthPayload = {
   preferredSetup: string;
 };
 
+const inflight = new Map<string, Promise<unknown>>();
+
 async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`);
+  const existing = inflight.get(url);
+  if (existing) {
+    return existing as Promise<T>;
   }
-  return response.json() as Promise<T>;
+
+  const request = fetch(url, {
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
+  })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+      }
+      return response.json() as Promise<T>;
+    })
+    .finally(() => {
+      inflight.delete(url);
+    });
+
+  inflight.set(url, request as Promise<unknown>);
+  return request;
 }
 
-let keyMetricsPromise: Promise<KeyMetricsPayload> | null = null;
-let snapshotPromise: Promise<MarketSnapshotPayload> | null = null;
-let healthPromise: Promise<MarketHealthPayload> | null = null;
-
 export function getKeyMetrics() {
-  if (!keyMetricsPromise) {
-    keyMetricsPromise = fetchJson<KeyMetricsPayload>('/api/dashboard/key-metrics');
-  }
-  return keyMetricsPromise;
+  return fetchJson<KeyMetricsPayload>('/api/dashboard/key-metrics');
 }
 
 export function getMarketSnapshot() {
-  if (!snapshotPromise) {
-    snapshotPromise = fetchJson<MarketSnapshotPayload>('/api/dashboard/market-snapshot');
-  }
-  return snapshotPromise;
+  return fetchJson<MarketSnapshotPayload>('/api/dashboard/market-snapshot');
 }
 
 export function getMarketHealth() {
-  if (!healthPromise) {
-    healthPromise = fetchJson<MarketHealthPayload>('/api/dashboard/market-health');
-  }
-  return healthPromise;
+  return fetchJson<MarketHealthPayload>('/api/dashboard/market-health');
 }
